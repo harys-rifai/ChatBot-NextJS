@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import OpenAI from 'openai';
 import { prisma } from '@/lib/prisma';
 import { authOptions } from '@/lib/auth';
 
@@ -30,10 +29,6 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    const openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
-    });
-
     const recentHistory = await prisma.chatHistory.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' },
@@ -51,13 +46,21 @@ export async function POST(req: NextRequest) {
       })),
     ];
 
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages,
-      temperature: 0.7,
+    const response = await fetch('https://api.kilo.ai/v1/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+      },
+      body: JSON.stringify({
+        messages,
+        model: 'kilo-mini',
+        temperature: 0.7,
+      }),
     });
 
-    const aiResponse = completion.choices[0]?.message?.content || 'Maaf, saya tidak dapat memberikan respons saat ini.';
+    const data = await response.json();
+    const aiResponse = data.choices?.[0]?.message?.content || 'Maaf, saya tidak dapat memberikan respons saat ini.';
 
     await prisma.chatHistory.create({
       data: {
